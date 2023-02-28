@@ -1,0 +1,426 @@
+---
+title: "Reg1_Roq1_knockout_analysis"
+output: html_notebook
+---
+
+```{r}
+
+# Load in required libraries
+library(DESeq2)
+library(tidyverse)
+library(RColorBrewer)
+library(pheatmap)
+library(tximport)
+library(ggplot2)
+library(ggrepel)
+
+```
+
+```{r}
+
+# List data directories
+samples_all <- list.files(path = "C:/Users/damai/Desktop/Research/Projects/1 - Reg1 & Roq1/functional/Baseline bulk RNAseq/Salmon/Combined_all", full.names = T, pattern = "quant$")
+files_all <- file.path(samples_all, "quant.sf")
+names(files_all) <- str_replace(samples_all, "C:/Users/damai/Desktop/Research/Projects/1 - Reg1 & Roq1/functional/Baseline bulk RNAseq/Salmon/Combined_M5", "") %>% 
+  str_replace(".salmon", "")
+
+```
+
+```{r}
+
+# Load gene annotations
+gtf.file = "C:/Users/damai/Desktop/Research/Projects/1 - Reg1 & Roq1/functional/Baseline bulk RNAseq/Salmon/ND539_M5/Homo_sapiens.GRCh38.CARM5.gtf"
+gtf.gr = rtracklayer::import(gtf.file) # creates a GRanges object
+gtf.df = as.data.frame(gtf.gr)
+genes = unique(gtf.df[ ,c("transcript_id", "gene_id","gene_name")])
+library(data.table)
+fwrite(genes, file="gene_ID.gene_name.txt", sep="\t")
+
+```
+
+```{r}
+
+tx2gene <- genes
+
+txi_all <- tximport(files_all, type="salmon", tx2gene=tx2gene[,c("transcript_id", "gene_id")], countsFromAbundance="lengthScaledTPM", ignoreTxVersion = TRUE)
+
+```
+
+```{r}
+
+# Write the counts to an object
+data_all <- txi_all$counts %>% 
+  round() %>% 
+  data.frame()
+
+```
+
+```{r}
+
+# Create sample table
+samples_all <- data.frame(pop = rep("TSI", 20), center = rep("UNIGE", 20), sample = c("ND539 Reg1-KO M5", "ND561 Reg1-KO M5", "ND561 Reg1-KO M5", "ND579 Reg1-KO 8F", "ND579 Reg1-KO 8F", "ND539 DKO M5", "ND561 DKO M5", "ND561 DKO M5", "ND579 DKO 8F", "ND579 DKO 8F", "ND539 Roq1-KO M5", "ND561 Roq1-KO M5", "ND561 Roq1-KO M5", "ND579 Roq1-KO 8F", "ND579 Roq1-KO 8F", "ND539 Mock M5", "ND561 Mock M5", "ND561 Mock M5", "ND579 Mock 8F", "ND579 Mock 8F"), condition = c(rep("Reg1-KO", 5), rep("DKO", 5), rep("Roq1-KO", 5), rep("Mock", 5)), run = rep(c("1", "1", "2", "1", "2")));
+
+```
+
+```{r}
+
+ddsTxi_all <- DESeqDataSetFromTximport(txi_all,
+                                   colData = samples_all,
+                                   design = ~ condition)
+
+```
+
+```{r}
+
+# Filtering
+keep <- rowSums(counts(ddsTxi_all)) >= 10
+ddsTxi_all <- ddsTxi_all[keep,]
+
+```
+
+```{r}
+
+# Re-level
+ddsTxi_all$condition <- relevel(ddsTxi_all$condition, ref = "Mock")
+
+```
+
+```{r}
+
+# Collapse technical replicates (from the two runs of ND561 - different libraries, same cells)
+ddsColl_all <- collapseReplicates(ddsTxi_all, ddsTxi_all$sample, ddsTxi_all$run)
+
+```
+
+```{r}
+
+# DEA
+dds_all <- DESeq(ddsColl_all)
+res_all <- results(dds_all)
+
+```
+
+```{r}
+
+# Adding gene names
+res_all$ensembl <- sapply( strsplit( rownames(res_all), split="\\+" ), "[", 1 )
+
+library( "biomaRt" )
+ensembl = useMart( "ensembl", dataset = "hsapiens_gene_ensembl" )
+genemap <- getBM( attributes = c("ensembl_gene_id", "entrezgene_id", "hgnc_symbol"),
+filters = "ensembl_gene_id",
+values = res_all$ensembl,
+mart = ensembl )
+idx_all <- match( res_all$ensembl, genemap$ensembl_gene_id )
+res_all$entrez <- genemap$entrezgene[ idx_all ]
+res_all$hgnc_symbol <- genemap$hgnc_symbol[ idx_all ]
+
+```
+
+```{r}
+
+# Plot and save PCA of samples
+rld_all <- rlog(ddsColl_all, blind = FALSE)
+# head(assay(rld_all), 3)
+plotPCA(rld_all, intgroup = c("sample"))
+ggsave("pca_all.svg")
+
+```
+
+```{r}
+
+# Map gene names to ID's
+library(org.Hs.eg.db)
+library(magrittr)
+symbols <- mapIds(org.Hs.eg.db, keys = rownames(dds_all),
+    column = c('SYMBOL'), keytype = 'ENSEMBL')
+  symbols <- symbols[!is.na(symbols)]
+  symbols <- symbols[match(rownames(dds_all), names(symbols))]
+  rownames(dds_all) <- symbols
+  keep <- !is.na(rownames(dds_all))
+  dds_all <- dds_all[keep,]
+
+```
+
+```{r}
+
+# Specifying genes of interest for plotting normalized counts across groups
+goi <- c("IL2", "IFNG", "TNF", "CD28", "ICOS", "ICOSLG", "PDCD1", "HAVCR2", "LAG3", "CTLA4", "CD40LG", "TIGIT", "IL2RA", "CD69", "CD44")
+
+```
+
+```{r}
+
+tcounts <- t(log2((counts(dds_all[goi, ], normalized=TRUE, replaced=FALSE)+.5))) %>%
+  merge(colData(dds_all), ., by="row.names") %>%
+  gather(gene, expression, (ncol(.)-length(goi)+1):ncol(.))
+
+```
+
+```{r}
+
+# Save tcounts for genes of interest as CSV
+write.csv( log2((counts(dds_all[goi, ], normalized=TRUE, replaced=FALSE)+.5)), file="tcounts.csv" )
+
+```
+
+```{r}
+
+# Save tcounts_all for all genes as CSV
+write.csv( log2((counts(dds_all, normalized=TRUE, replaced=FALSE)+.5)), file="tcounts_all.csv" )
+
+```
+
+```{r}
+
+tcounts %>% 
+  dplyr::select(Row.names, condition, gene, expression) %>% 
+  head %>% 
+  knitr::kable()
+
+```
+
+```{r}
+
+# Plot normalized counts for genes of interest
+ggplot(tcounts, aes(condition, expression)) + 
+  geom_boxplot() + 
+  facet_wrap(~gene, scales="free_y", nrow=3, ncol=5) + 
+  labs(x="Condition",
+       y="Expression (log normalized counts)", 
+       title="Expression of select inflammatory-associated genes") + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+ggsave("gene_expression_summary.svg")
+
+```
+
+```{r}
+
+# Reg1-KO vs. Mock
+reg1_res <- results(dds_all, contrast=c("condition", "Reg1-KO","Mock"))
+summary(reg1_res)
+
+```
+
+```{r}
+
+# Roq1-KO vs. Mock
+roq1_res <- results(dds_all, contrast=c("condition", "Roq1-KO","Mock"))
+summary(roq1_res)
+
+```
+
+```{r}
+
+# DKO vs. Mock
+dko_res <- results(dds_all, contrast=c("condition", "DKO","Mock"))
+summary(dko_res)
+
+```
+
+```{r}
+
+library(EnhancedVolcano)
+
+```
+
+```{r}
+
+# Volcano plot for Reg1-KO vs. Mock
+EnhancedVolcano(reg1_res,
+    lab = rownames(reg1_res),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'Reg1-KO vs. Mock',
+    subtitle = NULL,
+    titleLabSize = 14,
+    axisLabSize = 12,
+    pointSize = 2.0,
+    labSize = 4.0,
+    legendLabels = c("NS", expression(Log[2] ~ FC), expression(p-value), expression(p-value ~ and ~ log[2] ~ FC)),
+    legendPosition = 'right',
+    legendLabSize = 12,
+    legendIconSize = 4.0,
+    drawConnectors = TRUE,
+    max.overlaps = 30,
+    border = "full",
+    borderWidth = 0.8,
+    colAlpha = .5)
+
+ggsave("reg1-vs-mock.svg")
+
+```
+
+```{r}
+
+# Volcano plot for Roq1-KO vs. Mock
+EnhancedVolcano(roq1_res,
+    lab = rownames(roq1_res),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'Roq1-KO vs. Mock',
+    subtitle = NULL,
+    titleLabSize = 14,
+    axisLabSize = 12,
+    pointSize = 2.0,
+    labSize = 4.0,
+    legendLabels = c("NS", expression(Log[2] ~ FC), expression(p-value), expression(p-value ~ and ~ log[2] ~ FC)),
+    legendPosition = 'right',
+    legendLabSize = 12,
+    legendIconSize = 4.0,
+    drawConnectors = TRUE,
+    max.overlaps = 30,
+    border = "full",
+    borderWidth = 0.8,
+    colAlpha = .5)
+
+ggsave("roq1-vs-mock.svg")
+
+```
+
+```{r}
+
+# Volcano plot for DKO vs. Mock
+EnhancedVolcano(dko_res,
+    lab = rownames(dko_res),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'DKO vs. Mock',
+    subtitle = NULL,
+    titleLabSize = 14,
+    axisLabSize = 12,
+    pointSize = 2.0,
+    labSize = 4.0,
+    legendLabels = c("NS", expression(Log[2] ~ FC), expression(p-value), expression(p-value ~ and ~ log[2] ~ FC)),
+    legendPosition = 'right',
+    legendLabSize = 12,
+    legendIconSize = 4.0,
+    drawConnectors = TRUE,
+    max.overlaps = 25,
+    border = "full",
+    borderWidth = 0.8,
+    colAlpha = .5)
+
+ggsave("dko-vs-mock.svg")
+
+```
+
+```{r}
+
+# Save data files as CSV
+write.csv( as.data.frame(reg1_res), file="reg1_results.csv" )
+write.csv( as.data.frame(roq1_res), file="roq1_results.csv" )
+write.csv( as.data.frame(dko_res), file="dko_results.csv" )
+
+```
+
+```{r}
+
+# GSEA for Reg1-KO vs. Mock
+gsea_reg1 <- read_csv("C:/Users/damai/Documents/bulk-rnaseq/reg1_results.csv")
+
+names(gsea_reg1)[1] <- "SYMBOL"
+
+gsea_reg1_res <- gsea_reg1 %>% 
+  dplyr::select(SYMBOL, stat) %>% 
+  na.omit() %>% 
+  distinct() %>% 
+  group_by(SYMBOL) %>% 
+  summarize(stat=mean(stat))
+
+ranks_reg1 <- deframe(gsea_reg1_res)
+
+pathways.hallmark <- gmtPathways("C:/Users/damai/Documents/bulk-rnaseq/h.all.v7.5.1.symbols.gmt")
+
+fgseaRes <- fgsea(pathways=pathways.hallmark, stats=ranks_reg1, nperm=1000)
+
+library(DT)
+fgseaResTidy <- fgseaRes %>%
+  as_tibble() %>%
+  arrange(desc(NES))
+
+ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES)) +
+  geom_col(aes(fill=padj<0.05)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Reg1 vs. Mock") + 
+  theme_minimal() + 
+  theme(axis.text.y =  element_text(size=7))
+
+ggsave("reg1-vs-mock-gsea.svg")
+
+```
+
+```{r}
+
+# GSEA for Roq1-KO vs. Mock
+gsea_roq1 <- read_csv("C:/Users/damai/Documents/bulk-rnaseq/roq1_results.csv")
+
+names(gsea_roq1)[1] <- "SYMBOL"
+
+gsea_roq1_res <- gsea_roq1 %>% 
+  dplyr::select(SYMBOL, stat) %>% 
+  na.omit() %>% 
+  distinct() %>% 
+  group_by(SYMBOL) %>% 
+  summarize(stat=mean(stat))
+
+ranks_roq1 <- deframe(gsea_roq1_res)
+
+pathways.hallmark <- gmtPathways("C:/Users/damai/Documents/bulk-rnaseq/h.all.v7.5.1.symbols.gmt")
+
+fgseaRes <- fgsea(pathways=pathways.hallmark, stats=ranks_roq1, nperm=1000)
+
+library(DT)
+fgseaResTidy <- fgseaRes %>%
+  as_tibble() %>%
+  arrange(desc(NES))
+
+ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES)) +
+  geom_col(aes(fill=padj<0.05)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="Roq1 vs. Mock") + 
+  theme_minimal() + 
+  theme(axis.text.y =  element_text(size=7))
+
+ggsave("roq1-vs-mock-gsea.svg")
+
+```
+
+```{r}
+
+# GSEA for DKO vs. Mock
+gsea_dko <- read_csv("C:/Users/damai/Documents/bulk-rnaseq/dko_results.csv")
+
+names(gsea_dko)[1] <- "SYMBOL"
+
+gsea_dko_res <- gsea_dko %>% 
+  dplyr::select(SYMBOL, stat) %>% 
+  na.omit() %>% 
+  distinct() %>% 
+  group_by(SYMBOL) %>% 
+  summarize(stat=mean(stat))
+
+ranks_dko <- deframe(gsea_dko_res)
+
+pathways.hallmark <- gmtPathways("C:/Users/damai/Documents/bulk-rnaseq/h.all.v7.5.1.symbols.gmt")
+
+fgseaRes <- fgsea(pathways=pathways.hallmark, stats=ranks_dko, nperm=1000)
+
+library(DT)
+fgseaResTidy <- fgseaRes %>%
+  as_tibble() %>%
+  arrange(desc(NES))
+
+ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES)) +
+  geom_col(aes(fill=padj<0.05)) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title="DKO vs. Mock") + 
+  theme_minimal() + 
+  theme(axis.text.y =  element_text(size=7))
+
+ggsave("dko-vs-mock-gsea.svg")
+
+```
