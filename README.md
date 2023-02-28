@@ -1,4 +1,5 @@
-# Reg1_Roq1_knockout
+## Bulk RNAseq analysis of Regnase-1 and/or Roquin-1 knockout primary human T cells
+This repo describes analysis performed in the publication titled "Combined disruption of T cell inflammatory regulators Regnase-1 and Roquin-1 enhances antitumor activity of engineered human T cells".
 
 ### Bulk RNAseq data
 Sample type: primary human T cells
