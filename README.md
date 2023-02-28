@@ -16,3 +16,7 @@ Number of experimental groups per sample: 4
 * No knockout (Mock)
 
 Total samples = 20 (sample 1 * 4 groups * 1 rep + sample 2 * 4 groups * 2 reps + sample 3 * 4 groups * 2 reps)
+
+See Reg1_Roq1_knockout_analysis.Rmd for main analysis code and generation of data files and plots. 
+
+See XXX for processing code from raw data to input data into main analysis. 
