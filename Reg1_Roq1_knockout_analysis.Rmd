@@ -19,9 +19,9 @@ library(ggrepel)
 ```{r}
 
 # List data directories
-samples_all <- list.files(path = "PATH/Baseline bulk RNAseq/Salmon/Combined_all", full.names = T, pattern = "quant$")
+samples_all <- list.files(path = "PATH/Combined_all", full.names = T, pattern = "quant$")
 files_all <- file.path(samples_all, "quant.sf")
-names(files_all) <- str_replace(samples_all, "PATH/Baseline bulk RNAseq/Salmon/Combined_M5", "") %>% 
+names(files_all) <- str_replace(samples_all, "PATH/Combined_M5", "") %>% 
   str_replace(".salmon", "")
 
 ```
@@ -29,7 +29,7 @@ names(files_all) <- str_replace(samples_all, "PATH/Baseline bulk RNAseq/Salmon/C
 ```{r}
 
 # Load gene annotations
-gtf.file = "PATH/Baseline bulk RNAseq/Salmon/ND539_M5/Homo_sapiens.GRCh38.CARM5.gtf"
+gtf.file = "PATH/Homo_sapiens.GRCh38.CARM5.gtf"
 gtf.gr = rtracklayer::import(gtf.file) # creates a GRanges object
 gtf.df = as.data.frame(gtf.gr)
 genes = unique(gtf.df[ ,c("transcript_id", "gene_id","gene_name")])
