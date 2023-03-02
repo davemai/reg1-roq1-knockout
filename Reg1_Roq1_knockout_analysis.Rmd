@@ -19,9 +19,9 @@ library(ggrepel)
 ```{r}
 
 # List data directories
-samples_all <- list.files(path = "C:/Users/damai/Desktop/Research/Projects/1 - Reg1 & Roq1/functional/Baseline bulk RNAseq/Salmon/Combined_all", full.names = T, pattern = "quant$")
+samples_all <- list.files(path = "PATH/Baseline bulk RNAseq/Salmon/Combined_all", full.names = T, pattern = "quant$")
 files_all <- file.path(samples_all, "quant.sf")
-names(files_all) <- str_replace(samples_all, "C:/Users/damai/Desktop/Research/Projects/1 - Reg1 & Roq1/functional/Baseline bulk RNAseq/Salmon/Combined_M5", "") %>% 
+names(files_all) <- str_replace(samples_all, "PATH/Baseline bulk RNAseq/Salmon/Combined_M5", "") %>% 
   str_replace(".salmon", "")
 
 ```
@@ -29,7 +29,7 @@ names(files_all) <- str_replace(samples_all, "C:/Users/damai/Desktop/Research/Pr
 ```{r}
 
 # Load gene annotations
-gtf.file = "C:/Users/damai/Desktop/Research/Projects/1 - Reg1 & Roq1/functional/Baseline bulk RNAseq/Salmon/ND539_M5/Homo_sapiens.GRCh38.CARM5.gtf"
+gtf.file = "PATH/Baseline bulk RNAseq/Salmon/ND539_M5/Homo_sapiens.GRCh38.CARM5.gtf"
 gtf.gr = rtracklayer::import(gtf.file) # creates a GRanges object
 gtf.df = as.data.frame(gtf.gr)
 genes = unique(gtf.df[ ,c("transcript_id", "gene_id","gene_name")])
@@ -317,7 +317,7 @@ write.csv( as.data.frame(dko_res), file="dko_results.csv" )
 ```{r}
 
 # GSEA for Reg1-KO vs. Mock
-gsea_reg1 <- read_csv("C:/Users/damai/Documents/bulk-rnaseq/reg1_results.csv")
+gsea_reg1 <- read_csv("PATH/reg1_results.csv")
 
 names(gsea_reg1)[1] <- "SYMBOL"
 
@@ -330,7 +330,7 @@ gsea_reg1_res <- gsea_reg1 %>%
 
 ranks_reg1 <- deframe(gsea_reg1_res)
 
-pathways.hallmark <- gmtPathways("C:/Users/damai/Documents/bulk-rnaseq/h.all.v7.5.1.symbols.gmt")
+pathways.hallmark <- gmtPathways("PATH/h.all.v7.5.1.symbols.gmt")
 
 fgseaRes <- fgsea(pathways=pathways.hallmark, stats=ranks_reg1, nperm=1000)
 
@@ -354,7 +354,7 @@ ggsave("reg1-vs-mock-gsea.svg")
 ```{r}
 
 # GSEA for Roq1-KO vs. Mock
-gsea_roq1 <- read_csv("C:/Users/damai/Documents/bulk-rnaseq/roq1_results.csv")
+gsea_roq1 <- read_csv("PATH/roq1_results.csv")
 
 names(gsea_roq1)[1] <- "SYMBOL"
 
@@ -367,7 +367,7 @@ gsea_roq1_res <- gsea_roq1 %>%
 
 ranks_roq1 <- deframe(gsea_roq1_res)
 
-pathways.hallmark <- gmtPathways("C:/Users/damai/Documents/bulk-rnaseq/h.all.v7.5.1.symbols.gmt")
+pathways.hallmark <- gmtPathways("PATH/h.all.v7.5.1.symbols.gmt")
 
 fgseaRes <- fgsea(pathways=pathways.hallmark, stats=ranks_roq1, nperm=1000)
 
@@ -391,7 +391,7 @@ ggsave("roq1-vs-mock-gsea.svg")
 ```{r}
 
 # GSEA for DKO vs. Mock
-gsea_dko <- read_csv("C:/Users/damai/Documents/bulk-rnaseq/dko_results.csv")
+gsea_dko <- read_csv("PATH/dko_results.csv")
 
 names(gsea_dko)[1] <- "SYMBOL"
 
@@ -404,7 +404,7 @@ gsea_dko_res <- gsea_dko %>%
 
 ranks_dko <- deframe(gsea_dko_res)
 
-pathways.hallmark <- gmtPathways("C:/Users/damai/Documents/bulk-rnaseq/h.all.v7.5.1.symbols.gmt")
+pathways.hallmark <- gmtPathways("PATH/h.all.v7.5.1.symbols.gmt")
 
 fgseaRes <- fgsea(pathways=pathways.hallmark, stats=ranks_dko, nperm=1000)
 
